@@ -142,6 +142,7 @@ if __name__ == '__main__':
         action = None
         state = env.lidar_distances()
         COMMAND_DELAY = 0.2
+        HOVER_POINT = 0
         last_command = time.time()
         start_time = time.time()
         while True:
@@ -161,8 +162,12 @@ if __name__ == '__main__':
                 state = next_state
                 action = select_action(state)
                 x, y, z = action2motion(action, speed=2.0)
-                a.moveByVelocityAsync(x, y, z, 0.2)
-            
+                # Do a little bit of compensation if drone goes too high
+                z_pos = a.getMultirotorState().kinematics_estimated.position.z_val
+                correction_z = np.clip(HOVER_POINT - z_pos, -0.5, 0.5)
+                a.moveByVelocityAsync(x, y, correction_z, 0.2)
+
+
                 # Perform one step of the optimization (on the target network)
                 optimize_model()
 
@@ -182,45 +187,6 @@ if __name__ == '__main__':
         if i_episode % TARGET_UPDATE == 0:
             target_net.load_state_dict(policy_net.state_dict())
 
-
-"""
-    for _ in range(2):
-        a.reset()
-        env.reset()
-        a.confirmConnection()
-        a.enableApiControl(True)
-        a.armDisarm(True)
-        
-        COMMAND_DELAY = 0.2
-        last_command = time.time()
-        reward = 0
-        for _ in range(10000):
-            # Only perform a command after a delay, simulating the amount of time
-            # it takes the drone to actually run control and send commands to the
-            # motors. Also moving back and forth causes the drone to go vertical
-            # a little bit so make sure it hovers at the same height.
-            collision_info = a.simGetCollisionInfo()
-            if time.time() - last_command > COMMAND_DELAY:
-                last_command = time.time()
-                x, y = np.random.uniform(-2, 2), np.random.uniform(-2, 2) 
-                height = a.getMultirotorState().kinematics_estimated.position.z_val
-                STABLE_HEIGHT = -0.5
-                z_comp = np.clip(STABLE_HEIGHT - height, -0.5, 0.5)
-                print(height)
-                a.moveByVelocityAsync(x, y, z_comp, 0.1)
-                reward = compute_reward(env, collision_info)
-                print("Current reward: %f" % reward)
-        
-            if env.moving_objects == 0:
-                env.move_obstacle_at_drone()
-            
-            env.tick()
-            
-            if reward < -150 or collision_info.has_collided:
-                # Reset the environment, we've gotten BOOMED
-                break
-            
-            
-    env.reset()
-    a.reset()
-"""
+        # Save the model every 10 epochs
+        if i_episode % 10 == 0:
+            torch.save(policy_net, 'simple_dqn_6_10_5-{}.pth'.format(i_episode))

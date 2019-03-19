@@ -133,9 +133,9 @@ class ObstacleEnvironment(object):
         d = self.distance_from_nearest_object()
         # linearly interpolate negative reward for having the obstacle too close
         reward = 0
-        CRASH_DISTANCE = 1.0  
-        CLOSE_DISTANCE = 2.0 
-        NEAR_DISTANCE = 5 
+        CRASH_DISTANCE = 2.0 
+        CLOSE_DISTANCE = 3.0 
+        NEAR_DISTANCE = 6
         if d < CRASH_DISTANCE:
             reward += -200
         elif d < CLOSE_DISTANCE:
