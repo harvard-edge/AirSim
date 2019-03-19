@@ -91,7 +91,6 @@ def select_action(state, steps_done=1):
     sample = random.random()
     eps_threshold = EPS_END + (EPS_START - EPS_END) * \
     np.exp(-1. * steps_done / EPS_DECAY)
-    steps_done += 1
     if sample > eps_threshold:
         with torch.no_grad():
             state = torch.tensor(state).float().to(device)
@@ -160,7 +159,7 @@ if __name__ == '__main__':
                     memory.push(state_torch, action_torch, next_state_torch, reward)
                 
                 state = next_state
-                action = select_action(state)
+                action = select_action(state, steps_done=steps_done)
                 x, y, z = action2motion(action, speed=2.0)
                 # Do a little bit of compensation if drone goes too high
                 z_pos = a.getMultirotorState().kinematics_estimated.position.z_val
@@ -169,7 +168,10 @@ if __name__ == '__main__':
 
 
                 # Perform one step of the optimization (on the target network)
-                optimize_model()
+                # with some probability
+                if random.random() < 0.1:
+                    optimize_model()
+                    steps_done += 1
 
             if env.moving_objects == 0:
                 env.move_obstacle_at_drone(speed=0.8)
