@@ -9,7 +9,12 @@ import time
 import copy
 
 DRONE_ID = 'BP_FlyingPawn-1'
-
+LIDAR_IDS = ['Lidar1',  # right
+             'Lidar2',  # left
+             'Lidar3',  # front
+             'Lidar4',  # back
+             'Lidar5',  # down
+             'Lidar6']  # up
 class ObstacleEnvironment(object):
     """Takes in the current airsim client connected to the current obstacle
     avoidance demo environment, and provides functions to control the obstacles
@@ -106,6 +111,38 @@ class ObstacleEnvironment(object):
         pos_drone = self.c.getMultirotorState().kinematics_estimated.position
         x, y = pos_drone.x_val, pos_drone.y_val
         return min([self._distance_from_object(x, y, obj_id) for obj_id in self.obstacles])
+    
+    def lidar_distances(self):
+        """Get distances from our LIDAR sensors. Returns the six distances, in
+        the order of `right, left, front, back, down, up."""
+        pos_drone = self.c.getMultirotorState().kinematics_estimated.position
+        pos = np.array([pos_drone.x_val, pos_drone.y_val, pos_drone.z_val])
+        distances = []
+        try:
+            for l_id in LIDAR_IDS:
+                a = self.c.getLidarData(l_id).point_cloud[:3]
+                dist = np.sqrt(((np.array(a) - pos) ** 2).sum())
+                distances.append(dist)
+        except Exception as err:
+            print(str(err))
+            raise RuntimeError("Couldn't find lidar with name on vehicle. Are"
+                " you using the correct settings.json file?")
+        return np.array(distances)
+    
+    def compute_reward(self):
+        d = self.distance_from_nearest_object()
+        # linearly interpolate negative reward for having the obstacle too close
+        reward = 0
+        CRASH_DISTANCE = 1.0  
+        CLOSE_DISTANCE = 2.0 
+        NEAR_DISTANCE = 5 
+        if d < CRASH_DISTANCE:
+            reward += -200
+        elif d < CLOSE_DISTANCE:
+            reward += -100
+        elif d < NEAR_DISTANCE:
+            reward += -100 + 100 * (d - CLOSE_DISTANCE) / (NEAR_DISTANCE - CLOSE_DISTANCE)
+        return reward
 
 
 if __name__ == '__main__':
